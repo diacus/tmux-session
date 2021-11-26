@@ -128,7 +128,7 @@ sub isSetUp
   my $session = shift;
   my $exists = 0;
 
-  open(TMUX, 'tmux ls |');
+  open(TMUX, 'tmux ls 2>/dev/null |');
 
   while (<TMUX>) {
     my ($name, @__) = split(/:/);
