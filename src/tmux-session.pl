@@ -3,9 +3,7 @@
 use strict;
 
 use File::Path qw(make_path);
-use Getopt::Long;
 use YAML::Tiny;
-use Data::Dumper;
 
 my $settingsPath = "$ENV{HOME}/.config/tmux-session.yml";
 
@@ -20,30 +18,83 @@ sub main
   $sessionName = shift;
   $session = getSession($settings, $sessionName);
 
-  setUp($session) unless(isSetUp($session));
+  setUp($session) unless (isSetUp($session));
   attach($session);
 
   return 0;
 }
 
-sub handleNoSettings
+sub setUp
 {
-  print STDERR "No settings found\n";
-  print STDERR "Write session settings in $settingsPath using YAML format\n";
+  my $session = shift;
+  my @windows = @{$session->{windows}};
 
-  return 1;
-}
+  make_path($session->{home}) unless (-e $session->{home});
+  chdir($session->{home});
 
-sub loadSessionSettings
-{
-  my $settingsPath = "$ENV{HOME}/.config/tmux-session.yml";
-  my $settings;
+  system("tmux -2 new -s '$session->{name}' -d");
 
-  if (-e $settingsPath) {
-    $settings = YAML::Tiny->read($settingsPath)->[0];
+  while (my ($i, $window) = each @windows) {
+    system("tmux new-window -t $session->{name}") if ($i > 0);
+    $window->{id} = "$session->{name}:$i";
+    windowSetUp($window);
   }
 
-  return $settings;
+  system("tmux select-window -t $session->{name}:0");
+}
+
+sub windowSetUp
+{
+  my $window = shift;
+  my $layout = $window->{layout} || 'tiled';
+
+  my @panes;
+  my @rc;
+
+  @panes = @{$window->{panes}} if (exists $window->{panes});
+  @rc    = @{$window->{rc}}    if (exists $window->{rc});
+
+  foreach (@panes[1 .. $#panes]) {
+    system("tmux split-window -t $window->{id}");
+  }
+
+  system("tmux select-layout -t $window->{id} $layout");
+
+  if (@rc) {
+    system("tmux set-window-option -t $window->{id} synchronize-panes");
+    tmuxRun($window->{id}, @rc);
+    system("tmux set-window-option -u -t $window->{id} synchronize-panes");
+  }
+
+  while (my ($id, $pane) = each @panes) {
+    $pane->{id} = $id;
+    paneSetUp($pane);
+  }
+
+  system("tmux select-pane -t 0");
+  system("tmux rename-window -t $window->{id} $window->{name}");
+}
+
+sub paneSetUp
+{
+  my $pane = shift;
+  my @rc;
+
+  @rc = @{$pane->{rc}} if (exists $pane->{rc});
+  return unless (@rc);
+
+  system("tmux select-pane -t $pane->{id}");
+  tmuxRun(undef, @rc);
+}
+
+sub tmuxRun
+{
+  my ($target, @commands) = @_;
+  my $targetFlag = defined $target ? "-t $target" : "";
+
+  foreach my $command (@commands) {
+    system("tmux send-keys $targetFlag '$command' Enter");
+  }
 }
 
 sub getSession
@@ -81,30 +132,24 @@ sub isSetUp
   return $exists > 0;
 }
 
-sub setUp
+sub handleNoSettings
 {
-  my $session = shift;
-  my @windows = @{$session->{windows}};
+  print STDERR "No settings found\n";
+  print STDERR "Write session settings in $settingsPath using YAML format\n";
 
-  make_path($session->{home}) unless (-e $session->{home});
-  chdir($session->{home});
+  return 1;
+}
 
-  system("tmux -2 new -s '$session->{name}' -d");
+sub loadSessionSettings
+{
+  my $settingsPath = "$ENV{HOME}/.config/tmux-session.yml";
+  my $settings;
 
-  while (my ($i, $window) = each @windows) {
-    my @rc = @{$window->{rc}};
-    my $id = "$session->{name}:$i";
-
-    system("tmux new-window -t $session->{name}") if ($i > 0);
-
-    foreach my $command (@rc) {
-      system("tmux send-keys -t $id '$command' Enter");
-    }
-
-    system("tmux rename-window -t $id $window->{name}");
+  if (-e $settingsPath) {
+    $settings = YAML::Tiny->read($settingsPath)->[0];
   }
 
-  system("tmux select-window -t $session->{name}:0");
+  return $settings;
 }
 
 sub attach
