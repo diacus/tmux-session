@@ -34,11 +34,13 @@ sub setUp
   make_path($session->{home}) unless (-e $session->{home});
   chdir($session->{home});
 
-  system("tmux -2 new -s '$session->{name}' -d");
-
   @rc = @{$session->{rc}} if (exists $session->{rc});
-  tmuxRun($session->{name}, @rc) if (@rc);
 
+  foreach my $command (@rc) {
+    system($command);
+  }
+
+  system("tmux -2 new -s '$session->{name}' -d");
 
   @windows = @{$session->{windows}} if (exists $session->{windows});
 
