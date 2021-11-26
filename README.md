@@ -19,6 +19,8 @@ Describe your session settings in a YAML document and save it to
 home: /home/user/Projects ## Contains the root of the sessions
 sessions:
   work:                        ## The session name is free
+    rc:                        ## Run commands before creating windows
+      - test -d src/some-repo || gh clone some-repo src/some-repo
     windows:                   ## List of session windows
       - name: EDITOR
         rc:                    ## Define a list of commands to run

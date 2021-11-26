@@ -27,12 +27,20 @@ sub main
 sub setUp
 {
   my $session = shift;
-  my @windows = @{$session->{windows}};
+
+  my @windows;
+  my @rc;
 
   make_path($session->{home}) unless (-e $session->{home});
   chdir($session->{home});
 
   system("tmux -2 new -s '$session->{name}' -d");
+
+  @rc = @{$session->{rc}} if (exists $session->{rc});
+  tmuxRun($session->{name}, @rc) if (@rc);
+
+
+  @windows = @{$session->{windows}} if (exists $session->{windows});
 
   while (my ($i, $window) = each @windows) {
     system("tmux new-window -t $session->{name}") if ($i > 0);
